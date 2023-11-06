@@ -317,7 +317,7 @@ call spInsertClientePJ('Durango', 1254, null, 12345060, 12345678912349, 98765432
 
 -- Exercicio 9 --
 delimiter &&
-create procedure spInserirCompra(vNotaFiscalCompra int, vNome varchar(200), vDataCompra char(10), 
+create procedure spInsertCompra(vNotaFiscalCompra int, vNome varchar(200), vDataCompra char(10), 
 vCodigoBarrasProd decimal(14,0), vValorItem decimal (8,2), vQtdItem int, vQtdTotal int, vValorTotal decimal (8,2))
 begin
 if not exists (select NotaFiscalCompra from tbCompra where NotaFiscalCompra = vNotaFiscalCompra) then
@@ -348,7 +348,7 @@ call spInsertCompra(156354 , 'Revenda Chico Loco', '23/11/2021', 12345678910115,
 
 -- Exercício 10
 delimiter $$
-create procedure spInsertVenda(vNumeroVenda int, vNomeCli varchar(200), vDataVenda date, vCodigoBarrasProd decimal(14,0), vValorItem decimal(8,2), vQtd int, vTotalVenda decimal(8,2)) 
+create /*drop*/ procedure spInsertVenda(vNumeroVenda int, vNomeCli varchar(200), vDataVenda date, vCodigoBarrasProd decimal(14,0), vValorItem decimal(8,2), vQtd int, vTotalVenda decimal(8,2)) 
 begin
 if exists(select NomeCli from tbCliente where NomeCli = vNomeCli) then
 	if exists(select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd) then
@@ -362,16 +362,15 @@ if exists(select NomeCli from tbCliente where NomeCli = vNomeCli) then
 else
 	select 'Calma ai paizão, cliente não cadastrado';
 end if;
-
-if not exists(select NumeroVenda from tbItemVenda where NumeroVenda = vNumeroVenda and CodigoBarras = vCodigoBarras) then
+if not exists(select NumeroVenda from tbItemVenda where NumeroVenda = vNumeroVenda and CodigoBarrasVenda = vCodigoBarrasProd) then
 	insert into tbItemVenda(NumeroVenda, CodigoBarrasVenda, ValorItem, Qtd)
-	values((select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda), (select CodigoBarras from tbProduto where CodigoBarras = vCodigoBarras), vValorItem, vQtd);
+	values((select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda), (select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd), vValorItem, vQtd);
 end if;
 end $$
 
-call spInsertVenda (1, 'Pimpão', null, 12345678910111, 54.61, 1, 54.61);
-call spInsertVenda (2, 'Lança Perfume', null, 2345678910112, 100.45, 2, 200.90);
-call spInsertVenda (3, 'Pimpão', null, 12345678910113, 44.00, 1,44.00);
+call spInsertVenda (1, 'Pimpão', current_date, 12345678910111, 54.61, 1, 54.61);
+call spInsertVenda (2, 'Lança Perfume', current_date, 12345678910112, 100.45, 2, 200.90);
+call spInsertVenda (3, 'Pimpão', current_date, 12345678910113, 44.00, 1, 44.00);
 
 -- Exercicio 11 --
 delimiter $$
@@ -400,27 +399,28 @@ call spInsertProduto(12345678910132, 'Vestido Decote Redondo', 144.00, 50);
 delimiter $$
 create procedure spApagarProdutos()
 begin
-	delete from tbProduto 
-    where NomeProd = 'Boneco do Hitler' and NomeProd = 'Farinha de Suruí';
+	delete from tbProduto where CodigoBarrasProd = '12345678910116';
+    delete from tbProduto where CodigoBarrasProd = '12345678910117';
 end $$
 
--- VERIFICAR CALL
 call spApagarProdutos();
 
 -- Exercício 14
-describe tbProduto;
-
 delimiter $$
-create procedure spAtualizaProduto(vCodigoBarrasProd decimal(14,0), vNomeProd varchar(200), vValor decimal(6,2))
+create procedure spAtualizaProduto(vCodigoBarrasProd decimal(14,0), vNomeProd varchar(200), vValor decimal(6,2), vQtdProd int)
 begin
-	update tbProduto
-    set CodigoBarrasProd = 'vCodigoBarrasProd', NomeProd = 'vNomeProd', Valor = 'vValor'
-    where CodigoBarrasProd = vCodigoBarrasProd;
+	if exists(select * from tbProduto where vCodigoBarrasProd = vCodigoBarrasProd) then
+		update tbProduto set NomeProd = vNomeProd, Valor = vValor, QtdProd = vQtdProd
+		where CodigoBarrasProd = vCodigoBarrasProd;
+	end if;
 end $$
 
-call spAtualizaProduto(12345678910111, 'Rei de Papel Mache', 64.50);
-call spAtualizaProduto(12345678910112, 'Bolinha de Sabão', 120.00);
-call spAtualizaProduto(12345678910113, 'Carro Bate Bate', 64.00);
+describe tbProduto;
+select * from tbProduto;
+
+call spAtualizaProduto(12345678910111, 'Rei de Papel Mache',  64.50, 120);
+call spAtualizaProduto(12345678910112, 'Bolinha de Sabão', 120.00, 120);
+call spAtualizaProduto(12345678910113, 'Carro Bate', 64.00, 120);
 
 -- Exercício 15
 delimiter $$
@@ -439,7 +439,7 @@ alter table tbProdutoHistorico add Ocorrencia varchar(20);
 alter table tbProdutoHistorico add Atualizacao datetime;
 
 -- Exercicio 18
-alter table tbProdutoHistorico drop primary key, add primary key(CodBarras, Ocorrencia, Atualizacao);
+alter table tbProdutoHistorico drop primary key, add primary key(CodigoBarrasProd, Ocorrencia, Atualizacao);
 
 -- Exercicio 19
 delimiter $$
@@ -447,17 +447,17 @@ create trigger trgProdHistorico after insert on tbProduto
 for each row
 begin
 insert into tbProdutoHistorico
-	set CodBarras = new.CodBarras,
-	Nome = new.Nome,
-	ValorUnitario = new.ValorUnitario,
-	qtd = new.qtd,
+	set CodigoBarrasProd = new.CodigoBarrasProd,
+	NomeProd = new.NomeProd,
+	Valor = new.Valor,
+	QtdProd = new.QtdProd,
 	Ocorrencia = 'Produto Novo',
 	Atualizacao = current_timestamp();
 end $$
 
 select * from tbProdutoHistorico;
 
-call InsertProduto(12345678910119, 'Água mineral', 1.99, 500);
+call spInsertProduto(12345678910119, 'Água mineral', 1.99, 500);
 
 -- Exercicio 20 
 delimiter $$
@@ -465,22 +465,24 @@ create trigger trgProdHistoricoUpdate before update on tbProduto
 for each row
 begin
 insert into tbProdutoHistorico
-	set CodBarras = new.CodBarras,
-	Nome = new.Nome,
-	ValorUnitario = new.ValorUnitario,
-	qtd = new.qtd,
+	set CodigoBarrasProd = new.CodigoBarrasProd,
+	NomeProd = new.NomeProd,
+	Valor = new.Valor,
+	QtdProd = new.QtdProd,
 	Ocorrencia = 'Atualizado',
 	Atualizacao = current_timestamp();
 end $$
 
-call spAtualizarProduto(12345678910119, 'Água mineral', 2.99);
+call spAtualizaProduto(12345678910119, 'Água mineral', 2.99, 500);
 
 -- Exercício 21
 select * from tbProduto;
 
--- Exercício 22
-call spInsertVenda(null, 12345678910111, 1, 'Disney Chaplin', 65.00);
+-- Exercício 22 -- VE SAPORRA
+call spInsertVenda(1, 'Disney Chaplin', current_date, 12345678910111, 65.00, 1, 65.00);
+call spInsertVenda (1, 'Pimpão', current_date, 12345678910111, 54.61, 1, 54.61);
 select * from tbVenda;
+select * from tbProduto;
 
 -- Exercício 23
 select * from dbdistribuidora_rr.tbVenda

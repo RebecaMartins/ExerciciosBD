@@ -1,0 +1,43 @@
+/*correcao do ex 26 pela gi*/
+
+delimiter &&
+create trigger trgattqtd after insert on tbitemvenda
+for each row
+begin
+    update tbProduto set qtdProd = (qtdProd - new.qtd) where CodigoBarrasProd = new.CodigoBarrasVenda;
+end
+&&
+
+/* delimiter da 10? */
+
+delimiter &&
+create procedure spinsertvenda(vNumeroVenda int, vNomeCli varchar(200), vCodigoBarrasProd numeric(14), vValorItem decimal(8,3), vQtd int, vNF int)
+begin 
+
+		if (select ID from tbCliente where NomeCli = vNomeCli) then 
+			set @ID = (select ID from tbCliente where NomeCli = vNomeCli);
+            set @NotaFiscal = (select NF from tbNotaFiscal where NF = vNF);
+            set @total = (select valor from tbProduto where CodigoBarrasProd = vCodigoBarrasProd) * vQtd;
+            
+            if (select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd) then
+				if not exists (select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda) then 
+					insert into tbvenda (NumeroVenda, DataVenda, TotalVenda, IDCli, NF) 
+						values (vNumeroVenda, current_date(), @total, @ID, vNF);
+                        
+                    insert into tbItemVenda (NumeroVenda, CodigoBarrasVenda, ValorItem, Qtd) 
+						values (vNumeroVenda, vCodigoBarrasProd, vValorItem, vQtd);
+				end if;
+            end if;
+		end if;
+end &&
+/* delimiter 26?*/
+
+call spInsertVenda (1, 'Pimpão', 12345678910111, 54.61, 1, null);
+call spInsertVenda (2, 'Lança Perfume', 12345678910112, 100.45, 2, null);
+call spInsertVenda (3, 'Pimpão', 12345678910113, 44.00, 1, null);
+call spInsertVenda(4, "Paganada", 12345678910114, 10.00, 20, null);
+
+/*call 26*/
+
+
+

@@ -342,34 +342,36 @@ end &&
 
 call spInsertCompra(8459, 'Amoroso e Doce', '01/05/2018', 12345678910111, 22.22, 200, 700, 21944.00);
 call spInsertCompra(2482, 'Revenda Chico Loco', '22/04/2020', 12345678910112, 40.50, 180, 180,  7290.00 );
-call spInsertCompra(21563, 'Marcelo Dedal', '12/07/2020', 12345678910113,  3.00, 300, 300, 900.00);
-call spInsertCompra(8459, 'Amoroso e Doce', '04/12/2020', 12345678910114,  35.00, 500, 700, 21944.00);
-call spInsertCompra(156354 , 'Revenda Chico Loco', '23/11/2021', 12345678910115,  54.00, 350, 350, 18900.00);
+call spInsertCompra(21563, 'Marcelo Dedal', '12/07/2020', 12345678910113, 3.00, 300, 300, 900.00);
+call spInsertCompra(8459, 'Amoroso e Doce', '04/12/2020', 12345678910114, 35.00, 500, 700, 21944.00);
+call spInsertCompra(156354 , 'Revenda Chico Loco', '23/11/2021', 12345678910115, 54.00, 350, 350, 18900.00);
 
 -- Exercício 10
-delimiter $$
-create procedure spInsertVenda(vNumeroVenda int, vNomeCli varchar(200), vDataVenda date, vCodigoBarrasProd decimal(14,0), vValorItem decimal(8,2), vQtd int, vTotalVenda decimal(8,2)) 
-begin
-if exists(select NomeCli from tbCliente where NomeCli = vNomeCli) then
-	if exists(select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd) then
-        if not exists(select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda) then
-			insert into tbVenda(NumeroVenda, DataVenda, TotalVenda, IdCli)
-			values(vNumeroVenda, vDataVenda, vTotalVenda, (select id from tbCliente where NomeCli = vNomeCli));
-			insert into tbItemVenda(NumeroVenda, CodigoBarrasVenda, ValorItem, Qtd)
-			values((select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda), (select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd), vValorItem, vQtd);
-		update tbProduto set QtdProd = QtdProd - new.Qtd where CodigoBarrasProd = new.NumeroVenda;
-end if;
-	else
-		select 'Calma lá paizão, produto não cadastrado';
-	end if;
-else
-	select 'Calma ai paizão, cliente não cadastrado';
-end if;
-end $$
+delimiter &&
+create procedure spInsertVenda(vNumeroVenda int, vNomeCli varchar(200), vCodigoBarrasProd numeric(14), vValorItem decimal(8,3), vQtd int, vNF int)
+begin 
 
-call spInsertVenda (1, 'Pimpão', current_date, 12345678910111, 54.61, 1, 54.61);
-call spInsertVenda (2, 'Lança Perfume', current_date, 12345678910112, 100.45, 2, 200.90);
-call spInsertVenda (3, 'Pimpão', current_date, 12345678910113, 44.00, 1, 44.00);
+		if (select ID from tbCliente where NomeCli = vNomeCli) then 
+			set @ID = (select ID from tbCliente where NomeCli = vNomeCli);
+            set @NotaFiscal = (select NF from tbNotaFiscal where NF = vNF);
+            set @total = (select valor from tbProduto where CodigoBarrasProd = vCodigoBarrasProd) * vQtd;
+            
+            if (select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd) then
+				if not exists (select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda) then 
+					insert into tbvenda (NumeroVenda, DataVenda, TotalVenda, IDCli, NF) 
+						values (vNumeroVenda, current_date(), @total, @ID, vNF);
+                        
+                    insert into tbItemVenda (NumeroVenda, CodigoBarrasVenda, ValorItem, Qtd) 
+						values (vNumeroVenda, vCodigoBarrasProd, vValorItem, vQtd);
+				end if;
+            end if;
+		end if;
+end &&
+
+call spInsertVenda (1, 'Pimpão', 12345678910111, 54.61, 1, null);
+call spInsertVenda (2, 'Lança Perfume', 12345678910112, 100.45, 2, null);
+call spInsertVenda (3, 'Pimpão', 12345678910113, 44.00, 1, null);
+call spInsertVenda(4, "Paganada", 12345678910114, 10.00, 20, null);
 
 -- Exercicio 11 --
 delimiter $$
@@ -473,7 +475,7 @@ call spAtualizaProduto(12345678910119, 'Água mineral', 2.99, 500);
 select * from tbProduto;
 
 -- Exercício 22
-call spInsertVenda(4, 'Disney Chaplin', current_date, 12345678910111, 65.00, 1, 65.00);
+call spInsertVenda(5, 'Disney Chaplin', 12345678910111, 65.00, 1, null);
 
 -- Exercício 23
 select * from dbdistribuidora_rr.tbVenda
@@ -493,106 +495,125 @@ end $$
 
 call spBuscarCliente();
 
--- Exercicio 26 (uma condição que dimiui um produto do estoque no inventário a cada compra) -- VÊ SAPORRA
-delimiter $$
-create procedure spInsertVenda2(vNumeroVenda int, vNomeCli varchar(200), vDataVenda date, vCodigoBarrasProd decimal(14,0), vValorItem decimal(8,2), vQtd int, vTotalVenda decimal(8,2)) 
-begin
-if exists(select NomeCli from tbCliente where NomeCli = vNomeCli) then
-	if exists(select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd) then
-        if not exists(select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda) then
-			insert into tbVenda(NumeroVenda, DataVenda, TotalVenda, IdCli)
-			values(vNumeroVenda, vDataVenda, vTotalVenda, (select id from tbCliente where NomeCli = vNomeCli));
-			insert into tbItemVenda(NumeroVenda, CodigoBarrasVenda, ValorItem, Qtd)
-			values((select NumeroVenda from tbVenda where NumeroVenda = vNumeroVenda), (select CodigoBarrasProd from tbProduto where CodigoBarrasProd = vCodigoBarrasProd), vValorItem, vQtd);
-		update tbProduto set QtdProd = QtdProd - Qtd where CodigoBarrasProd = NumeroVenda;
-end if;
-	else
-		select 'Calma lá paizão, produto não cadastrado';
-	end if;
-else
-	select 'Calma ai paizão, cliente não cadastrado';
-end if;
-end $$
-
-/*delimiter &&
-create trigger trgQtdHistorico before insert on tbVenda
+-- Exercicio 26 (uma condição que dimiui um produto do estoque no inventário a cada compra)
+delimiter &&
+create trigger trgAttQtd after insert on tbItemVenda
 for each row
 begin
-	update tbProduto 
-    set QtdProd = QtdProd - new.Qtd
-    where CodigoBarrasProd = new.NumeroVenda;
-end &&*/
-
-describe tbItemVenda;
-describe tbVenda;
-describe tbProduto;
-
-select * from tbProduto;
-select * from tbVenda;
-select * from tbItemVenda;
+    update tbProduto set qtdProd = (qtdProd - new.qtd) where CodigoBarrasProd = new.CodigoBarrasVenda;
+end &&
 
 -- Exercicio 27 (insert de um novo produto vendido)
-call spInsertVenda2(5, "Paganada", current_date, 12345678910114, 10.00, 15, 150.00);
+call spInsertVenda(6, "Paganada", 12345678910114, 10.00, 15, null);
 
 -- Exercicio 28
 call spMostrarProdutos();
 
 -- Exercicio 29 (adicionado uma nova compra no historico)
 delimiter &&
-create trigger trgQtdCompra after insert on tbitemcompra 
-for each row begin update tbProduto set qtd = (qtd + new.qtd) where CodigoBarras = new.CodigoBarras;
+create trigger trgQtdCompra after insert on tbItemCompra 
+for each row begin 
+    update tbProduto set QtdItem = (QtdItem + new.QtdItem) where CodigoBarras = new.CodigoBarras;
 end &&
 
 -- Exercicio 30 (Nova compra)
-call spInsertCompra(10548, 'Amoroso e Doce', str_to_date('10/09/2022','%d/%m/%Y'), 12345678910111, 40.00, 100, 4000.00);
+call spInsertCompra(10548, 'Amoroso e Doce', '10/09/2022', 12345678910111, 40.00, 100, 100, 4000.00);
 
 -- Exerciocio 31 
-call spselectProduto;
+select * from tbProduto;
 
 -- Exercicio 32 (Selects com join)
 select * from tbCliente inner join tbClientePF ON tbCliente.ID = tbClientePF.ID;
 
 -- Exercicio 33
- select * from tbCliente inner join tbClientePJ ON tbCliente.ID = tbClientePJ.ID;
+select * from tbCliente inner join tbClientePJ ON tbCliente.ID = tbClientePJ.ID;
 
 -- Exercicio 34
-select tbCliente.ID, tbClientePJ from tbCliente inner join tbClientePJ ON tbCliente.ID = tbClientePJ.ID;
+select tbCliente.ID, tbCliente.NomeCli, tbClientePJ.CNPJ, tbClientePJ.IE, tbClientePJ.ID from tbCliente inner join tbClientePJ ON tbCliente.ID = tbClientePJ.ID;
 
 -- Exercicio 35 (Aqui pede pra executar tudo do cliente pessoa fisica)
 select tbCliente.ID as id, tbCliente.NomeCli as NomeCli, tbClientePF.CPF as CPF, tbClientePF.RG as RG, 
 tbClientePF.Nasc as "data de nascimento" from tbCliente inner join tbClientePF on tbCliente.ID = tbClientePF.ID;
 
 -- Exercício 36
-select tbCliente.ID as id, tbCliente.NomeCli as NomeCli, tbCliente.NumEnd as NumEnd, tbCliente.CompEnd as CompEnd, tbCliente.CEP as CEP,
-tbClientePJ.CNPJ as CNPJ, tbClientePJ.IE as IE from tbCliente, tbClientePJ.ID as id,
-tbEndereco.Logradouro as Logradouro, tbEndereco.BairroId as BairroId, tbEndereco.CidadeId as CidadeId, tbEndereco.UFId as UFId, tbEndereco.CEP as CEP from tbCliente
-inner join 	tbClientePJ on tbCliente.ID = tbClientePF.ID
-inner join tbEndereco on tbCliente.CEP = tbEndereco.CEP;
+select 
+    tbCliente.ID as id, 
+    tbCliente.NomeCli as NomeCli, 
+    tbCliente.NumEnd as NumEnd, 
+    tbCliente.CompEnd as CompEnd, 
+    tbCliente.CepCli as CliCEP,
+    tbClientePJ.CNPJ as CNPJ, 
+    tbClientePJ.IE as IE,
+    tbEndereco.Logradouro as Logradouro, 
+    tbEndereco.BairroId as BairroId, 
+    tbEndereco.CidadeId as CidadeId, 
+    tbEndereco.UFId as UFId, 
+    tbEndereco.CEP as EndCEP 
+from 
+    tbCliente
+inner join 
+    tbClientePJ ON tbCliente.ID = tbClientePJ.ID
+inner join 
+    tbEndereco ON tbCliente.CepCli = tbEndereco.CEP;
 
 -- Exercício 37
-select tbCliente.ID as id, tbCliente.NomeCli as NomeCli, tbCliente.NumEnd as NumEnd, tbCliente.CompEnd as CompEnd,
-tbEndereco.CEP as CEP, tbEndereco.Logradoura as Logradoura,
-tbBairro.Bairro as Bairro, tbCidade.Cidade as Cidade, tbEstado.UF as UF from tbCliente
-inner join tbEndereco on tbCliente.CEP = tbEndereco.CEP
-inner join tbBairro on tbEndereco.Bairro = tbBairro.Bairro
-inner join tbCidade on tbEndereco.Cidade = tbCidade.Cidade
-inner join tbEstado on tbEndereco.UF = tbEstado.UF;
+select 
+    tbCliente.ID as id, 
+    tbCliente.NomeCli as NomeCli, 
+    tbCliente.NumEnd as NumEnd, 
+    tbCliente.CompEnd as CompEnd,
+    tbEndereco.CEP as CEP, 
+    tbEndereco.Logradouro as Logradouro,
+    tbBairro.Bairro as Bairro, 
+    tbCidade.Cidade as Cidade, 
+    tbEstado.UF as UF 
+from
+    tbCliente
+inner join
+    tbEndereco ON tbCliente.CepCli = tbEndereco.CEP
+inner join
+    tbBairro ON tbEndereco.BairroId = tbBairro.BairroId
+inner join 
+    tbCidade ON tbEndereco.CidadeId = tbCidade.CidadeId
+inner join
+    tbEstado ON tbEndereco.UFId = tbEstado.UFId;
 
 -- Exercício 38
 delimiter $$
-create procedure spMostraRegistro(in id INT)
+create procedure spMostraRegistro(IN id INT)
 begin
-	select
-		tbCliente.id as 'vid',
-		tbCliente.NomeCli as 'vNomeCli',
-		tbCliente.CPF as 'vCPF',
-		tbEndereco.Bairro as 'vBairro',
-		tbEndereco.Cidade as 'vCidade',
-		tbEndereco.Estado as 'vUF'
-	from tbCliente inner join tbEndereco on tbCliente.CEP = tbEndereco.CEP where tbCliente.id = id;
+    select
+        tbCliente.ID as 'Código',
+        tbCliente.NomeCli as 'Nome',
+        tbClientePF.CPF as 'CPF',
+        tbClientePF.RG as 'RG',
+        tbClientePF.RGDig as 'Digito',
+        tbClientePF.Nasc as 'Data de Nascimento',
+        tbEndereco.CEP as 'CEP',
+		tbEndereco.Logradouro as 'Logradouro',
+        tbCliente.NumEnd as 'Número',
+        tbCliente.CompEnd as 'Complemento',
+        tbEndereco.BairroId as 'Bairro',
+        tbEndereco.CidadeId as 'Cidade',
+        tbEndereco.UFId as 'UF'
+    from 
+        tbCliente
+    inner join 
+        tbClientePF ON tbCliente.ID = tbClientePF.ID
+    inner join 
+        tbEndereco ON tbCliente.CepCli = tbEndereco.CEP
+    inner join 
+        tbBairro ON tbEndereco.BairroId = tbBairro.BairroId
+    inner join 
+        tbCidade ON tbEndereco.CidadeId = tbCidade.CidadeId
+    inner join 
+        tbEstado ON tbEndereco.UFId = tbEstado.UFId
+    where 
+        tbCliente.ID = id;
 end $$
 
 call spMostraRegistro(1);
+-- Por algum motivo, todos os select's estão indo no primeiro, problema que não conseguimos resolver
 call spMostraRegistro(2);
 call spMostraRegistro(3);
 call spMostraRegistro(4);
@@ -602,6 +623,6 @@ call spMostraRegistro(5);
 select * from tbItemVenda left join tbProduto on tbItemVenda.CodigoBarrasVenda = tbProduto.CodigoBarrasProd;
 
 -- Exercício 40
-select * from tbNotaFiscal right join tbFornecedor on tbNotaFiscal.CodFornecas = tbFornecedor.CodFornecas;
+select * from tbNotaFiscal right join tbFornecedor on tbNotaFiscal.NF = tbFornecedor.CodFornecas;
 
--- TALVEZ TERÁ MAIS EXERCÍCIOS, MAS DO 1 PARA O 40 ESTÁ "COMPLETO" (VERIFICAR CALLS, PROCEDURES E SELECTS PARTINDO DA 9)
+-- TALVEZ TERÁ MAIS EXERCÍCIOS, MAS DO 1 PARA O 40 ESTÁ COMPLETO(Menos a 38 :((()
